@@ -14,6 +14,17 @@ import sysconfig
 import subprocess
 from contextlib import contextmanager
 
+# check if pip is >= 10
+PIP_VERSION = 9
+try:
+    import pip
+    from pkg_resources import parse_version
+
+    if parse_version(pip.__version__) >= parse_version('10.0.0'):
+        PIP_VERSION = 10
+except Exception:
+    pass
+
 
 WIN = sys.platform.startswith('win')
 FORMATS = ['tar.gz', 'tar.bz2', 'tar', 'zip', 'dir']
@@ -315,9 +326,16 @@ class Builder(object):
         pip = os.path.join(venv_path, 'bin', 'pip')
 
         with self.log.indented():
-            self.execute(pip, ['install', '--download', data_dir] +
-                         self.get_pip_options() +
-                         [make_spec('wheel', self.wheel_version)])
+            if PIP_VERSION == 9:
+                self.execute(pip, ['install', '--download', data_dir] +
+                            self.get_pip_options() +
+                            [make_spec('wheel', self.wheel_version)])
+            elif PIP_VERSION == 10:
+                self.execute(pip, ['download', '-d', data_dir] +
+                            self.get_pip_options() +
+                            [make_spec('wheel', self.wheel_version)])
+            else:
+                raise RuntimeError('Unknown pip version: {}'.format(PIP_VERSION))
 
             cmdline = ['wheel', '--wheel-dir=' + data_dir]
             cmdline.extend(self.get_pip_options())
@@ -423,9 +441,17 @@ class Builder(object):
         self.log.info('Downloading and extracting virtualenv bootstrapper')
         with self.log.indented():
             scratchpad = self.make_scratchpad('venv-tmp')
-            self.execute(find_exe('pip'), ['install', '--download', scratchpad] +
-                         self.get_pip_options() +
-                         [make_spec('virtualenv', self.virtualenv_version)])
+
+            if PIP_VERSION == 9:
+                self.execute(find_exe('pip'), ['install', '--download', scratchpad] +
+                            self.get_pip_options() +
+                            [make_spec('virtualenv', self.virtualenv_version)])
+            elif PIP_VERSION == 10:
+                self.execute(find_exe('pip'), ['download', '-d', scratchpad] +
+                            self.get_pip_options() +
+                            [make_spec('virtualenv', self.virtualenv_version)])
+            else:
+                raise RuntimeError('Unknown pip version: {}'.format(PIP_VERSION))
 
             artifact = os.path.join(scratchpad, os.listdir(scratchpad)[0])
             if artifact.endswith(('.zip', '.whl')):
