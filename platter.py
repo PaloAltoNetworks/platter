@@ -14,16 +14,7 @@ import sysconfig
 import subprocess
 from contextlib import contextmanager
 
-# check if pip is >= 10
-PIP_VERSION = 9
-try:
-    import pip
-    from pkg_resources import parse_version
-
-    if parse_version(pip.__version__) >= parse_version('10.0.0'):
-        PIP_VERSION = 10
-except Exception:
-    pass
+from pkg_resources import parse_version
 
 
 WIN = sys.platform.startswith('win')
@@ -325,17 +316,19 @@ class Builder(object):
         self.log.info('Building wheels')
         pip = os.path.join(venv_path, 'bin', 'pip')
 
+        pipv = self.execute(pip, ['-V'], capture=True)
+        _, version, _ = pipv.split(' ', 2)
+        version = parse_version(version)
+
         with self.log.indented():
-            if PIP_VERSION == 9:
-                self.execute(pip, ['install', '--download', data_dir] +
-                            self.get_pip_options() +
-                            [make_spec('wheel', self.wheel_version)])
-            elif PIP_VERSION == 10:
+            if version >= parse_version('10.0.0'):
                 self.execute(pip, ['download', '-d', data_dir] +
                             self.get_pip_options() +
                             [make_spec('wheel', self.wheel_version)])
             else:
-                raise RuntimeError('Unknown pip version: {}'.format(PIP_VERSION))
+                self.execute(pip, ['install', '--download', data_dir] +
+                            self.get_pip_options() +
+                            [make_spec('wheel', self.wheel_version)])
 
             cmdline = ['wheel', '--wheel-dir=' + data_dir]
             cmdline.extend(self.get_pip_options())
@@ -419,7 +412,7 @@ class Builder(object):
                 f.close()
             elif format == 'zip':
                 f = zipfile.ZipFile(tmp_fn, 'w')
-                for dirpath, dirnames, files in os.walk(scratchpad):
+                for dirpath, _, files in os.walk(scratchpad):
                     for file in files:
                         f.write(os.path.join(dirpath, file),
                                 os.path.join(base, dirpath[
@@ -442,16 +435,18 @@ class Builder(object):
         with self.log.indented():
             scratchpad = self.make_scratchpad('venv-tmp')
 
-            if PIP_VERSION == 9:
-                self.execute(find_exe('pip'), ['install', '--download', scratchpad] +
-                            self.get_pip_options() +
-                            [make_spec('virtualenv', self.virtualenv_version)])
-            elif PIP_VERSION == 10:
+            pipv = self.execute(find_exe('pip'), ['-V'], capture=True)
+            _, version, _ = pipv.split(' ', 2)
+            version = parse_version(version)
+
+            if version >= parse_version('10.0.0'):
                 self.execute(find_exe('pip'), ['download', '-d', scratchpad] +
                             self.get_pip_options() +
                             [make_spec('virtualenv', self.virtualenv_version)])
             else:
-                raise RuntimeError('Unknown pip version: {}'.format(PIP_VERSION))
+                self.execute(find_exe('pip'), ['install', '--download', scratchpad] +
+                            self.get_pip_options() +
+                            [make_spec('virtualenv', self.virtualenv_version)])
 
             artifact = os.path.join(scratchpad, os.listdir(scratchpad)[0])
             if artifact.endswith(('.zip', '.whl')):
