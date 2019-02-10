@@ -84,7 +84,7 @@ DATA_DIR="$HERE/data"
 command -v "$py" &> /dev/null || error "Given python interpreter not found ($py)"
 
 echo 'Setting up virtualenv'
-"$py" "$DATA_DIR/virtualenv.py" "$1"
+"$py" "$DATA_DIR/virtualenv.py" --extra-search-dir "$DATA_DIR" "$1"
 VIRTUAL_ENV="$(cd "$1"; pwd)"
 
 INSTALL_ARGS=''
